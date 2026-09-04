@@ -55,6 +55,27 @@ const routes = app
 export default routes
 ```
 
+### Shared Data
+
+Use `share` to add data to every page. It accepts a callback that receives the current Hono context and may be asynchronous. Shared data is shallow-merged before page props, so page-specific props override duplicate keys.
+
+To include shared data in `PageProps` type inference, chain `inertia()` when creating the app.
+
+```ts
+const app = new Hono()
+
+const routes = app
+  .use(
+    inertia({
+      share: (c) => ({
+        path: c.req.path,
+        appName: 'App Name',
+      }),
+    })
+  )
+  .get('/', (c) => c.render('Home'))
+```
+
 ### React + Vite (`vite-ssr-components`) example
 
 Pair `@hono/inertia` with [`vite-ssr-components`](https://github.com/yusukebe/vite-ssr-components) to wire up Vite's HMR client and module scripts during development. The `<ViteClient />`, `<Script />` and `<Link />` helpers emit the right tags in both dev and production builds.
@@ -339,6 +360,7 @@ export default defineConfig({
 | ---------- | ---------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `version`  | `string \| null`                         | `null`                                        | Asset version. Stale `X-Inertia-Version` on a GET request triggers a `409 Conflict` with an `X-Inertia-Location` header so the client does a full reload. |
 | `rootView` | `(page, c) => string \| Promise<string>` | Minimal HTML shell embedding the page object. | HTML document for the initial (non Inertia) request.                                                                                                      |
+| `share`    | `(c: Context<E>) => V \| Promise<V>`     | `undefined`                                   | Shared data included with every page. Page-specific props override duplicate keys.                                                                        |
 
 ## Example app
 

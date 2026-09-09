@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { describe, expect, it } from 'vitest'
 import type { PageObject, ScrollDescriptor } from './index'
 import { deepMerge, defer, inertia, merge, prepend, scroll } from './index'
@@ -33,6 +34,7 @@ describe('inertia', () => {
             seen.push(page)
             return `<!DOCTYPE html><html><body data-url="${c.req.path}">${page.component}</body></html>`
           },
+          share: () => ({ appName: 'App Name' }),
         })
       )
       app.get('/posts/:id', (c) => c.render('Posts/Show', { id: c.req.param('id') }))
@@ -47,9 +49,10 @@ describe('inertia', () => {
       expect(seen).toHaveLength(1)
       expect(seen[0]).toEqual({
         component: 'Posts/Show',
-        props: { id: '42' },
+        props: { appName: 'App Name', id: '42' },
         url: '/posts/42?ref=test',
         version: 'v1',
+        sharedProps: ['appName'],
       })
     })
 
@@ -146,21 +149,31 @@ describe('inertia', () => {
         duplicated: 'string',
         own: true,
       })
+      expect(body.sharedProps).toEqual(['static', 'lazy', 'duplicated'])
     })
 
-    it('resolves shared props from an asynchronous callback', async () => {
-      const app = new Hono()
-      // eslint-disable-next-line @typescript-eslint/require-await
-      app.use(inertia({ share: async (c) => ({ path: c.req.path }) }))
+    it('reads shared props from values set by later middleware', async () => {
+      type Session = { user: { name: string } }
+      type SessionEnv = { Variables: { session: Session | null } }
+      const app = new Hono<SessionEnv>()
+      app.use(
+        inertia({
+          share: (c: Context<SessionEnv>) => ({ session: c.get('session') }),
+        })
+      )
+      app.use((c, next) => {
+        c.set('session', { user: { name: 'John Doe' } })
+        return next()
+      })
       app.get('/', (c) => c.render('Home'))
 
       const res = await app.request('/', { headers: { 'X-Inertia': 'true' } })
 
       const body = (await res.json()) as PageObject
-      expect(body.props).toEqual({ path: '/' })
+      expect(body.props).toEqual({ session: { user: { name: 'John Doe' } } })
     })
 
-    it('filters shared props during a partial reload', async () => {
+    it('keeps shared prop keys in metadata during a partial reload', async () => {
       const app = new Hono()
       app.use(inertia({ version: 'v1', share: () => ({ id: 0 }) }))
       app.get('/', (c) => c.render('Home', { partial: 'reload' }))
@@ -176,6 +189,17 @@ describe('inertia', () => {
 
       const body = (await res.json()) as PageObject
       expect(body.props).toEqual({ partial: 'reload' })
+      expect(body.sharedProps).toEqual(['id'])
+    })
+
+    it('omits shared prop metadata when no shared keys exist', async () => {
+      const app = new Hono()
+      app.use(inertia({ share: () => ({}) }))
+      app.get('/', (c) => c.render('Home'))
+
+      const res = await app.request('/', { headers: { 'X-Inertia': 'true' } })
+
+      expect((await res.json()) as PageObject).not.toHaveProperty('sharedProps')
     })
   })
 

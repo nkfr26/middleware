@@ -21,6 +21,8 @@ export type PageObject<P = Record<string, unknown>> = {
   props: P
   url: string
   version: string | null
+  /** Top-level keys registered by `share`. Omitted when no shared keys exist. */
+  sharedProps?: string[]
   /**
    * Deferred prop keys grouped by their fetch group. Present only on initial
    * (non-partial) responses when at least one prop was marked with
@@ -387,7 +389,10 @@ export const scroll = <T>(options: ScrollOptions<T>): T[] => {
   return marker as unknown as T[]
 }
 
-export interface InertiaOptions<E extends Env = Env, V = Record<string, never>> {
+export interface InertiaOptions<
+  E extends Env = Env,
+  V extends Record<string, unknown> = Record<string, never>,
+> {
   /**
    * Asset version. When an Inertia GET request's `X-Inertia-Version` header
    * does not match this value, the middleware short circuits with a
@@ -410,11 +415,11 @@ export interface InertiaOptions<E extends Env = Env, V = Record<string, never>> 
   /**
    * Shared props included on every rendered page.
    *
-   * Provide a callback that receives the current Hono context and returns the
-   * shared props synchronously or asynchronously.
-   * Page-specific props take precedence when a key exists in both objects.
+   * Accepts a synchronous callback that receives the current Hono context and returns shared props.
+   * Shared props are combined with page props, with page props taking precedence
+   * when keys overlap. They are processed in the same way as props passed to `c.render()`.
    */
-  share?: (c: Context<E>) => V | Promise<V>
+  share?: (c: Context<E>) => V
 }
 
 /**
@@ -469,7 +474,10 @@ const defaultRootView: RootView = (page) =>
  * app.get('/', (c) => c.render('Home', { message: 'Hello' }))
  * ```
  */
-export const inertia = <E extends Env = Env, V = Record<string, never>>(
+export const inertia = <
+  E extends Env = Env,
+  V extends Record<string, unknown> = Record<string, never>,
+>(
   options: InertiaOptions<E, V> = {}
 ): MiddlewareHandler<InertiaSharedEnv<V>> => {
   const version: string | null = options.version ?? null
@@ -486,12 +494,13 @@ export const inertia = <E extends Env = Env, V = Record<string, never>>(
       }
     }
 
-    c.setRenderer((async (
+    c.setRenderer(((
       component: string,
       propsInput: Record<string, unknown> = {},
       options: RenderOptions = {}
     ) => {
-      const sharedProps = share ? await share(c as unknown as Context<E>) : {}
+      const sharedProps = share ? share(c as unknown as Context<E>) : {}
+      const sharedPropKeys = Object.keys(sharedProps)
       // Merge shared props first so page-specific props override duplicate keys.
       const mergedProps = { ...sharedProps, ...propsInput }
 
@@ -618,6 +627,9 @@ export const inertia = <E extends Env = Env, V = Record<string, never>>(
           props: resolvedProps,
           url: url.pathname + url.search,
           version,
+        }
+        if (sharedPropKeys.length > 0) {
+          page.sharedProps = sharedPropKeys
         }
         if (!isPartial && Object.keys(deferredGroups).length > 0) {
           page.deferredProps = deferredGroups

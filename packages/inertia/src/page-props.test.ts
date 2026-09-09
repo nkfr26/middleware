@@ -70,6 +70,11 @@ describe('PagePropsFor', () => {
     }>()
   })
 
+  it('requires share callbacks to return props synchronously', () => {
+    // @ts-expect-error Shared props are returned synchronously.
+    inertia({ share: async () => ({ session: await Promise.resolve(null) }) })
+  })
+
   it('merges shared props and prefers page props for duplicate keys', () => {
     const _app = new Hono()
       .use(

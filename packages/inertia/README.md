@@ -57,26 +57,26 @@ export default routes
 
 ### Shared Data
 
-Use `share` to add data to every page. It accepts a callback that receives the current Hono context and may be asynchronous. Shared data is shallow-merged before page props, so page-specific props override duplicate keys.
+Use `share` to add data to every page. It accepts a synchronous callback that receives the current Hono context and returns shared props. Shared props are combined with page props, with page props taking precedence when keys overlap. They are processed in the same way as props passed to `c.render()`.
 
 To include shared data in `PageProps` type inference, chain `inertia()` when creating the app.
 
 ```ts
 import type { Context } from 'hono'
 
-type Session = { user: { id: string } }
-type SissionEnv = { Variables: { session: Session | null } }
+type Session = { user: { name: string } }
+type SessionEnv = { Variables: { session: Session | null } }
 
-const app = new Hono<SissionEnv>()
+const app = new Hono<SessionEnv>()
 
 const routes = app
   .use((c, next) => {
-    c.set('session', null)
+    c.set('session', { user: { name: 'John Doe' } })
     return next()
   })
   .use(
     inertia({
-      share: (c: Context<SissionEnv>) => ({
+      share: (c: Context<SessionEnv>) => ({
         appName: 'App Name',
         session: c.get('session'),
       }),
@@ -84,6 +84,8 @@ const routes = app
   )
   .get('/', (c) => c.render('Home'))
 ```
+
+The page object includes `sharedProps`, an array of top-level keys registered by `share`. It is omitted when no shared keys exist.
 
 ### React + Vite (`vite-ssr-components`) example
 
@@ -369,7 +371,7 @@ export default defineConfig({
 | ---------- | ---------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `version`  | `string \| null`                         | `null`                                        | Asset version. Stale `X-Inertia-Version` on a GET request triggers a `409 Conflict` with an `X-Inertia-Location` header so the client does a full reload. |
 | `rootView` | `(page, c) => string \| Promise<string>` | Minimal HTML shell embedding the page object. | HTML document for the initial (non Inertia) request.                                                                                                      |
-| `share`    | `(c: Context<E>) => V \| Promise<V>`     | `undefined`                                   | Shared data included with every page. Page-specific props override duplicate keys.                                                                        |
+| `share`    | `(c: Context<E>) => V`                   | `undefined`                                   | Shared data included with every page. Page-specific props override duplicate keys.                                                                        |
 
 ## Example app
 

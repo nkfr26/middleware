@@ -203,6 +203,34 @@ describe('inertia', () => {
     })
   })
 
+  describe('render return value', () => {
+    it('returns a Response when props do not need async resolution', async () => {
+      let rendered: unknown
+      const app = new Hono().use(inertia()).get('/', (c) => {
+        const response = c.render('Home', { message: 'hello' })
+        rendered = response
+        return response
+      })
+
+      await app.request('/')
+
+      expect(rendered).toBeInstanceOf(Response)
+    })
+
+    it('returns a Promise when props need async resolution', async () => {
+      let rendered: unknown
+      const app = new Hono().use(inertia()).get('/', (c) => {
+        const response = c.render('Home', { message: () => Promise.resolve('hello') })
+        rendered = response
+        return response
+      })
+
+      await app.request('/')
+
+      expect(rendered).toBeInstanceOf(Promise)
+    })
+  })
+
   describe('Inertia (XHR) request', () => {
     it('responds with JSON page object and Inertia headers', async () => {
       const app = new Hono()

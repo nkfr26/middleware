@@ -740,13 +740,16 @@ export interface RenderOptions {
   url?: string
 }
 
+type RenderResponse<C extends PageName, P> = Response &
+  TypedResponse<{ component: C; props: ResolvedProps<P> }, 200, 'html'>
+
 declare module 'hono' {
   interface ContextRenderer {
     <C extends PageName, P = Record<string, never>>(
       component: C,
       props?: P,
       options?: RenderOptions
-    ): Promise<Response & TypedResponse<{ component: C; props: ResolvedProps<P> }, 200, 'html'>>
+    ): RenderResponse<C, P> | Promise<RenderResponse<C, P>>
   }
   interface NotFoundResponse extends Response, TypedResponse<string, 404, 'text'> {}
 }

@@ -155,6 +155,7 @@ describe('inertia', () => {
     it('reads shared props from values set by later middleware', async () => {
       type Session = { user: { name: string } }
       type SessionEnv = { Variables: { session: Session | null } }
+
       const app = new Hono<SessionEnv>()
       app.use(
         inertia({

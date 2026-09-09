@@ -55,38 +55,6 @@ const routes = app
 export default routes
 ```
 
-### Shared Data
-
-Use `share` to add data to every page. It accepts a synchronous callback that receives the current Hono context and returns shared props. Shared props are combined with page props, with page props taking precedence when keys overlap. They are processed in the same way as props passed to `c.render()`.
-
-To include shared data in `PageProps` type inference, chain `inertia()` when creating the app.
-
-```ts
-import type { Context } from 'hono'
-
-type Session = { user: { name: string } }
-type SessionEnv = { Variables: { session: Session | null } }
-
-const app = new Hono<SessionEnv>()
-
-const routes = app
-  .use((c, next) => {
-    c.set('session', { user: { name: 'John Doe' } })
-    return next()
-  })
-  .use(
-    inertia({
-      share: (c: Context<SessionEnv>) => ({
-        appName: 'App Name',
-        session: c.get('session'),
-      }),
-    })
-  )
-  .get('/', (c) => c.render('Home'))
-```
-
-The page object includes `sharedProps`, an array of top-level keys registered by `share`. It is omitted when no shared keys exist.
-
 ### React + Vite (`vite-ssr-components`) example
 
 Pair `@hono/inertia` with [`vite-ssr-components`](https://github.com/yusukebe/vite-ssr-components) to wire up Vite's HMR client and module scripts during development. The `<ViteClient />`, `<Script />` and `<Link />` helpers emit the right tags in both dev and production builds.
@@ -237,6 +205,38 @@ app.put('/users/:id', async (c) => {
 The Inertia protocol requires redirects issued from `PUT`, `PATCH`, and `DELETE` requests to use [`303 See Other`](https://inertiajs.com/redirects): with a `302` the client replays the original method against the redirect target instead of following it with a `GET`. The middleware rewrites `302` to `303` for those methods on Inertia requests, so `c.redirect` needs no special casing.
 
 Non-Inertia requests, `POST` redirects, and explicit statuses such as `307` are left untouched.
+
+## Shared Data
+
+Use `share` to add data to every page. It accepts a synchronous callback that receives the current Hono context and returns shared props. Shared props are combined with page props, with page props taking precedence when keys overlap. They are processed in the same way as props passed to `c.render()`.
+
+To include shared data in `PageProps` type inference, chain `inertia()` when creating the app.
+
+```ts
+import type { Context } from 'hono'
+
+type Session = { user: { name: string } }
+type SessionEnv = { Variables: { session: Session | null } }
+
+const app = new Hono<SessionEnv>()
+
+const routes = app
+  .use((c, next) => {
+    c.set('session', { user: { name: 'John Doe' } })
+    return next()
+  })
+  .use(
+    inertia({
+      share: (c: Context<SessionEnv>) => ({
+        appName: 'App Name',
+        session: c.get('session'),
+      }),
+    })
+  )
+  .get('/', (c) => c.render('Home'))
+```
+
+The `page.sharedProps` field contains an array of top-level keys registered by `share`. The Inertia client uses these keys during instant visits.
 
 ## Partial reloads
 

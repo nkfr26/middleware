@@ -174,6 +174,24 @@ describe('inertia', () => {
       expect(body.props).toEqual({ session: { user: { name: 'John Doe' } } })
     })
 
+    it('supports the curried form with an explicit Env', async () => {
+      type Session = { user: { name: string } }
+      type SessionEnv = { Variables: { session: Session | null } }
+
+      const app = new Hono<SessionEnv>()
+      app.use((c, next) => {
+        c.set('session', null)
+        return next()
+      })
+      app.use(inertia<SessionEnv>()({ share: (c) => ({ session: c.get('session') }) }))
+      app.get('/', (c) => c.render('Home'))
+
+      const res = await app.request('/', { headers: { 'X-Inertia': 'true' } })
+
+      const body = (await res.json()) as PageObject
+      expect(body.props).toEqual({ session: null })
+    })
+
     it('keeps shared prop keys in metadata during a partial reload', async () => {
       const app = new Hono()
       app.use(inertia({ version: 'v1', share: () => ({ id: 0 }) }))

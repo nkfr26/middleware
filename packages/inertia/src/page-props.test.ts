@@ -70,6 +70,19 @@ describe('PagePropsFor', () => {
     }>()
   })
 
+  it('infers shared props from the curried share callback', () => {
+    type Session = { user: { name: string } }
+    type SessionEnv = { Variables: { session: Session | null } }
+
+    const _app = new Hono()
+      .use(inertia<SessionEnv>()({ share: (c) => ({ session: c.get('session') }) }))
+      .get('/', (c) => c.render('CurriedShared'))
+
+    expectTypeOf<PagePropsFor<typeof _app, 'CurriedShared'>>().toEqualTypeOf<{
+      session: { user: { name: string } } | null
+    }>()
+  })
+
   it('requires share callbacks to return props synchronously', () => {
     // @ts-expect-error Shared props are returned synchronously.
     inertia({ share: async () => ({ session: await Promise.resolve(null) }) })

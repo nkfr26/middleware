@@ -389,9 +389,11 @@ export const scroll = <T>(options: ScrollOptions<T>): T[] => {
   return marker as unknown as T[]
 }
 
+type EmptySharedProps = Record<string, never>
+
 export interface InertiaOptions<
   E extends Env = Env,
-  V extends Record<string, unknown> = Record<string, never>,
+  V extends Record<string, unknown> = EmptySharedProps,
 > {
   /**
    * Asset version. When an Inertia GET request's `X-Inertia-Version` header
@@ -455,28 +457,10 @@ const defaultRootView: RootView = (page) =>
   </body>
 </html>`
 
-/**
- * Inertia.js middleware for Hono.
- *
- * Sets up `c.render(component, props)` to respond according to the Inertia
- * protocol: JSON page objects for `X-Inertia` requests, props JSON for
- * `Accept: application/json` requests, full HTML otherwise.
- *
- * @example
- * ```ts
- * import { Hono } from 'hono'
- * import { inertia } from '@hono/inertia'
- *
- * const app = new Hono()
- *
- * app.use(inertia())
- *
- * app.get('/', (c) => c.render('Home', { message: 'Hello' }))
- * ```
- */
-export const inertia = <
+/** Creates the configured Inertia middleware implementation. */
+const createInertia = <
   E extends Env = Env,
-  V extends Record<string, unknown> = Record<string, never>,
+  V extends Record<string, unknown> = EmptySharedProps,
 >(
   options: InertiaOptions<E, V> = {}
 ): MiddlewareHandler<InertiaSharedEnv<V>> => {
@@ -698,6 +682,79 @@ export const inertia = <
 
     return c.res
   }
+}
+
+type CurriedInertia<E extends Env> = <V extends Record<string, unknown> = EmptySharedProps>(
+  options: InertiaOptions<E, V>
+) => MiddlewareHandler<InertiaSharedEnv<V>>
+
+/**
+ * Inertia.js middleware for Hono.
+ *
+ * Sets up `c.render(component, props)` to respond according to the Inertia
+ * protocol: JSON page objects for `X-Inertia` requests, props JSON for
+ * `Accept: application/json` requests, full HTML otherwise.
+ *
+ * @example
+ * ```ts
+ * import { Hono } from 'hono'
+ * import { inertia } from '@hono/inertia'
+ *
+ * const app = new Hono()
+ *
+ * app.use(inertia())
+ *
+ * app.get('/', (c) => c.render('Home', { message: 'Hello' }))
+ * ```
+ */
+// inertia(options)
+export function inertia<E extends Env = Env, V extends Record<string, unknown> = EmptySharedProps>(
+  options: InertiaOptions<E, V> | undefined
+): MiddlewareHandler<InertiaSharedEnv<V>>
+
+// inertia()
+export function inertia(): MiddlewareHandler<InertiaSharedEnv<EmptySharedProps>>
+
+// inertia<E>()(options)
+export function inertia<E extends Env>(): CurriedInertia<E>
+
+export function inertia<E extends Env, V extends Record<string, unknown>>(
+  // inertia(options) / inertia()
+  ...args: [InertiaOptions<E, V> | undefined] | []
+): MiddlewareHandler<InertiaSharedEnv<V>> | CurriedInertia<E> {
+  // inertia(options)
+  if (args.length === 1) {
+    return createInertia<E, V>(args[0])
+  }
+
+  // inertia()
+  const middleware = createInertia()
+
+  function dispatch(
+    // app.use(inertia())
+    // Hono invokes `dispatch` with (c, next)
+    ...args: Parameters<typeof middleware>
+  ): ReturnType<typeof middleware>
+
+  function dispatch<Shared extends Record<string, unknown> = EmptySharedProps>(
+    // inertia<E>()(options)
+    options: InertiaOptions<E, Shared>
+  ): MiddlewareHandler<InertiaSharedEnv<Shared>>
+
+  function dispatch<Shared extends Record<string, unknown>>(
+    // dispatch(c, next) / dispatch(options)
+    ...args: Parameters<typeof middleware> | [InertiaOptions<E, Shared>]
+  ): ReturnType<typeof middleware> | MiddlewareHandler<InertiaSharedEnv<Shared>> {
+    // app.use(inertia()) -> dispatch(c, next)
+    if (args.length === 2) {
+      return middleware(...args)
+    }
+
+    // inertia<E>()(options)
+    return createInertia<E, Shared>(args[0])
+  }
+
+  return dispatch
 }
 
 /**
